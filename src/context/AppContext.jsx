@@ -66,6 +66,7 @@ function reducer(state, action) {
     case 'ADD_NOTIFICATION': return { ...state, notifications: [action.payload, ...state.notifications] };
     case 'UPDATE_USER': return { ...state, users: state.users.map(u => u.id === action.payload.id ? { ...u, ...action.payload } : u) };
     case 'ADD_USER': return { ...state, users: upsert(state.users, action.payload) };
+    case 'DELETE_USER': return { ...state, users: state.users.filter(u => u.id !== action.payload) };
     // Realtime-driven collection mutations
     case 'RT_UPSERT': {
       const key = action.key;
@@ -99,6 +100,7 @@ async function persist(action) {
     case 'ADD_NOTIFICATION': return insertRow('notifications', { title: action.payload.title, message: action.payload.message, type: action.payload.type, read: !!action.payload.read });
     case 'MARK_NOTIF_READ': return updateRow('notifications', action.payload, { read: true });
     case 'UPDATE_USER': return updateRow('profiles', action.payload.id, action.payload);
+    case 'DELETE_USER': return deleteRow('profiles', action.payload);
     case 'ADD_USER':
       // Creating a real login requires Supabase Auth signup (can't be done from
       // an admin browser session safely). New logins come through the Sign Up

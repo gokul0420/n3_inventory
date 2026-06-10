@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { Users, Plus, Edit, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
+import { Users, Plus, Edit, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 
 export default function UserManagement() {
   const { state, dispatch, addNotification } = useApp();
+  const { user: currentUser } = useAuth();
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'executive', status: 'active' });
 
@@ -22,6 +24,16 @@ export default function UserManagement() {
     addNotification('User Updated', `${u.name} ${newStatus}`, 'info');
   };
 
+  const handleDelete = (u) => {
+    if (u.id === currentUser?.id) {
+      addNotification('Action blocked', "You can't remove your own account while signed in.", 'danger');
+      return;
+    }
+    if (!window.confirm(`Remove ${u.name} (${u.email})? They will lose access to the app. This cannot be undone.`)) return;
+    dispatch({ type: 'DELETE_USER', payload: u.id });
+    addNotification('User Removed', `${u.name} has been removed`, 'info');
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header"><div><h1 className="page-title">User Management</h1><p className="page-subtitle">Manage users and assign roles</p></div>
@@ -36,7 +48,7 @@ export default function UserManagement() {
               <td>{u.email}</td>
               <td><span className="badge badge-info">{u.role}</span></td>
               <td><span className={`badge ${u.status==='active'?'badge-active':u.status==='pending'?'badge-warning':'badge-inactive'}`}>{u.status}</span></td>
-              <td><div className="table-actions"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}><Edit size={14}/></button><button className="btn btn-ghost btn-sm" onClick={() => toggleStatus(u)}>{u.status==='active'?<ToggleRight size={14} style={{color:'var(--success)'}}/>:<ToggleLeft size={14}/>}</button></div></td>
+              <td><div className="table-actions"><button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}><Edit size={14}/></button><button className="btn btn-ghost btn-sm" onClick={() => toggleStatus(u)}>{u.status==='active'?<ToggleRight size={14} style={{color:'var(--success)'}}/>:<ToggleLeft size={14}/>}</button><button className="btn btn-ghost btn-sm" title="Remove user" onClick={() => handleDelete(u)}><Trash2 size={14} style={{color:'var(--danger)'}}/></button></div></td>
             </tr>
           ))}</tbody>
         </table>
