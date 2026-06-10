@@ -12,6 +12,8 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@supabase/supabase-js": "^2.108.1",
     "@vitejs/plugin-react": "^4.7.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

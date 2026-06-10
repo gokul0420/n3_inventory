@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/inv_app/node_modules/vite/bin/vite.js", "--host"],
+      "port": 5173,
+      "autoPort": false,
+      "env": {
+        "VITE_CWD": "C:/inv_app"
+      }
+    }
+  ]
+}

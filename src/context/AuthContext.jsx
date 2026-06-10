@@ -1,88 +1,126 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { getAllUsers, findUserByEmail, findUserByEmployeeId, updateUser } from '../data/userStore.js';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+// Fetch the app-level profile (role/status/name) for an auth user id.
+async function fetchProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  if (error) return null;
+  return data;
+}
 
-  const login = useCallback((email, password) => {
-    const found = getAllUsers().find(u => u.email === email && u.password === password);
-    if (found) {
-      if (found.status === 'pending') {
-        return { success: false, error: 'Please sign up first to set your password.' };
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);     // merged auth + profile object
+  const [authReady, setAuthReady] = useState(false);
+
+  // Restore session on load and subscribe to auth changes (login/logout/refresh).
+  useEffect(() => {
+    let active = true;
+
+    async function hydrate(session) {
+      if (!session?.user) { if (active) { setUser(null); setAuthReady(true); } return; }
+      const profile = await fetchProfile(session.user.id);
+      if (!active) return;
+      if (profile) {
+        setUser({ ...profile, authId: session.user.id });
+      } else {
+        // Auth user exists but no profile row — treat as logged out.
+        setUser(null);
       }
-      if (found.status === 'inactive') {
-        return { success: false, error: 'Your account has been deactivated. Contact admin.' };
-      }
-      setUser(found);
-      return { success: true, user: found };
+      setAuthReady(true);
     }
-    // Check if user exists but password is wrong
-    const byEmail = findUserByEmail(email);
-    if (byEmail && !byEmail.password) {
-      return { success: false, error: 'Please sign up first to set your password.' };
-    }
-    return { success: false, error: 'Invalid email or password' };
+
+    supabase.auth.getSession().then(({ data }) => hydrate(data.session));
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      hydrate(session);
+    });
+
+    return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  const employeeLogin = useCallback((employeeId, email, password) => {
-    const found = findUserByEmployeeId(employeeId);
-    if (!found) {
-      return { success: false, error: 'Employee ID not found in the system.' };
+  const login = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) {
+      return { success: false, error: error.message || 'Invalid email or password' };
     }
-    if (found.email !== email) {
-      return { success: false, error: 'Email does not match the registered Employee ID.' };
+    const profile = await fetchProfile(data.user.id);
+    if (!profile) {
+      return { success: false, error: 'No profile found for this account. Contact admin.' };
     }
-    if (found.status === 'pending') {
-      return { success: false, error: 'Please sign up first to set your password.' };
-    }
-    if (found.status === 'inactive') {
+    if (profile.status === 'inactive') {
+      await supabase.auth.signOut();
       return { success: false, error: 'Your account has been deactivated. Contact admin.' };
     }
-    if (found.password !== password) {
-      return { success: false, error: 'Invalid password.' };
-    }
-    setUser(found);
-    return { success: true, user: found };
+    const merged = { ...profile, authId: data.user.id };
+    setUser(merged);
+    return { success: true, user: merged };
   }, []);
 
-  const signup = useCallback((email, password) => {
-    const found = findUserByEmail(email);
-    if (!found) {
-      return { success: false, error: "Oops! Your email ID was not found in the system. Please contact the admin." };
+  // Staff self-registration. Creates the auth user; a DB trigger creates the
+  // matching profile row from the metadata passed here.
+  const signup = useCallback(async (email, password, name, role = 'executive') => {
+    const cleanEmail = email.trim();
+    const displayName = name?.trim() || cleanEmail.split('@')[0];
+    const avatar = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: { data: { name: displayName, role, avatar } },
+    });
+    if (error) {
+      return { success: false, error: error.message };
     }
-    if (found.password && found.status === 'active') {
-      return { success: false, error: 'This account already has a password. Please sign in instead.' };
+    // If email confirmation is ON, there is no session yet.
+    if (!data.session) {
+      return { success: false, error: 'Account created — please confirm your email, then sign in. (Tip: disable "Confirm email" in Supabase Auth settings for instant access.)' };
     }
-    // Set the password and activate the user
-    updateUser({ id: found.id, password, status: 'active' });
-    const updatedUser = findUserByEmail(email);
-    setUser(updatedUser);
-    return { success: true, user: updatedUser };
+    const profile = await fetchProfile(data.user.id);
+    const merged = { ...(profile || { name: displayName, email: cleanEmail, role }), authId: data.user.id };
+    setUser(merged);
+    return { success: true, user: merged };
   }, []);
 
-  const employeeSignup = useCallback((employeeId, email, password) => {
-    const found = findUserByEmployeeId(employeeId);
-    if (!found) {
-      return { success: false, error: 'Employee ID not found. Please contact your admin.' };
+  // Employee login: sign in by email/password, then verify the profile is an
+  // employee whose employee_id matches what they typed.
+  const employeeLogin = useCallback(async (employeeId, email, password) => {
+    const res = await login(email, password);
+    if (!res.success) return res;
+    if (res.user.role !== 'employee') {
+      await supabase.auth.signOut();
+      setUser(null);
+      return { success: false, error: 'This account is not an employee account.' };
     }
-    if (found.email !== email) {
+    if (res.user.employee_id && res.user.employee_id !== employeeId.trim()) {
+      await supabase.auth.signOut();
+      setUser(null);
       return { success: false, error: 'Email does not match the registered Employee ID.' };
     }
-    if (found.password && found.status === 'active') {
-      return { success: false, error: 'This account already has a password. Please sign in instead.' };
-    }
-    updateUser({ id: found.id, password, status: 'active' });
-    const updatedUser = findUserByEmployeeId(employeeId);
-    setUser(updatedUser);
-    return { success: true, user: updatedUser };
+    return res;
+  }, [login]);
+
+  const employeeSignup = useCallback(async (employeeId, email, password) => {
+    return signup(email, password, email.trim().split('@')[0], 'employee');
+  }, [signup]);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
   }, []);
 
-  const logout = useCallback(() => setUser(null), []);
-
   return (
-    <AuthContext.Provider value={{ user, login, employeeLogin, signup, employeeSignup, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{
+      user, authReady, login, employeeLogin, signup, employeeSignup, logout,
+      isAuthenticated: !!user,
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -93,4 +131,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be inside AuthProvider');
   return ctx;
 }
-

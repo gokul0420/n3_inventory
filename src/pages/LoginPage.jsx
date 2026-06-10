@@ -41,9 +41,9 @@ export default function LoginPage() {
 
     let res;
     if (loginType === 'employee') {
-      res = employeeLogin(employeeId, email, password);
+      res = await employeeLogin(employeeId, email, password);
     } else {
-      res = login(email, password);
+      res = await login(email, password);
     }
     setLoading(false);
     if (res.success) navigate(`/${res.user.role}`);
@@ -74,9 +74,9 @@ export default function LoginPage() {
         setError('Employee ID is required.');
         return;
       }
-      res = employeeSignup(employeeId, email, password);
+      res = await employeeSignup(employeeId, email, password);
     } else {
-      res = signup(email, password);
+      res = await signup(email, password);
     }
     setLoading(false);
     if (res.success) {

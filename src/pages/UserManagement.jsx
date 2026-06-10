@@ -11,7 +11,7 @@ export default function UserManagement() {
   const openEdit = (u) => { setForm({ ...u }); setModal('edit'); };
 
   const handleSave = () => {
-    if (modal === 'create') { dispatch({ type: 'ADD_USER', payload: { ...form, id: Date.now(), avatar: form.name.split(' ').map(n=>n[0]).join(''), password: null, status: 'pending' } }); addNotification('User Created', `${form.name} added — they can now sign up to set their password`, 'success'); }
+    if (modal === 'create') { dispatch({ type: 'ADD_USER', payload: { ...form, id: Date.now(), avatar: form.name.split(' ').map(n=>n[0]).join(''), password: null } }); addNotification('User Created', `${form.name} added successfully`, 'success'); }
     else { dispatch({ type: 'UPDATE_USER', payload: form }); addNotification('User Updated', `${form.name} updated`, 'info'); }
     setModal(null);
   };
@@ -48,6 +48,7 @@ export default function UserManagement() {
             <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Enter name"/></div>
             <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Enter email"/></div>
             <div className="form-group"><label className="form-label">Role</label><select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value})}><option value="executive">Executive</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+            <div className="form-group"><label className="form-label">Status</label><select className="form-select" value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value})}><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></div>
           </div>
           <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn btn-primary" onClick={handleSave} disabled={!form.name||!form.email}>Save</button></div>
         </div></div>
