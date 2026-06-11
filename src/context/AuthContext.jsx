@@ -77,7 +77,11 @@ export function AuthProvider({ children }) {
       options: { data: { name: displayName, role, avatar } },
     });
     if (error) {
-      return { success: false, error: error.message };
+      // The DB trigger rejects emails an admin hasn't pre-added.
+      const msg = /database error|not_invited/i.test(error.message)
+        ? 'Your email is not registered. Please ask your admin to add you in User Management first.'
+        : error.message;
+      return { success: false, error: msg };
     }
     // If email confirmation is ON, there is no session yet.
     if (!data.session) {

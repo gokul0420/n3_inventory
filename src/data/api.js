@@ -35,8 +35,15 @@ function appToRow(obj, table) {
 }
 
 // ─── Bulk load everything the app needs (called once after login) ───────────
+// A pending invite (admin-added, not yet signed up) rendered as a user row.
+export function pendingToUser(row) {
+  const r = rowToApp(row);
+  return { ...r, id: 'P_' + r.email, status: 'pending', pending: true,
+    avatar: (r.name || r.email).replace(/\s/g, '').slice(0, 2).toUpperCase() };
+}
+
 export async function loadAll() {
-  const [stock, dist, reorder, alloc, audit, notif, profiles] = await Promise.all([
+  const [stock, dist, reorder, alloc, audit, notif, profiles, pending] = await Promise.all([
     supabase.from('stock_items').select('*').order('id'),
     supabase.from('distributions').select('*').order('created_at', { ascending: false }),
     supabase.from('reorder_requests').select('*').order('request_date', { ascending: false }),
@@ -44,8 +51,9 @@ export async function loadAll() {
     supabase.from('audit_logs').select('*').order('date', { ascending: false }).limit(500),
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('*').order('name'),
+    supabase.from('pending_users').select('*').order('created_at', { ascending: false }),
   ]);
-  const err = [stock, dist, reorder, alloc, audit, notif, profiles].find((r) => r.error);
+  const err = [stock, dist, reorder, alloc, audit, notif, profiles, pending].find((r) => r.error);
   if (err) console.error('[api.loadAll]', err.error);
   return {
     stockItems: (stock.data || []).map(rowToApp),
@@ -54,7 +62,7 @@ export async function loadAll() {
     employeeAllocations: (alloc.data || []).map(rowToApp),
     auditLogs: (audit.data || []).map(rowToApp),
     notifications: (notif.data || []).map(rowToApp),
-    users: (profiles.data || []).map(rowToApp),
+    users: [...(profiles.data || []).map(rowToApp), ...(pending.data || []).map(pendingToUser)],
   };
 }
 
@@ -71,16 +79,16 @@ export async function insertRows(table, objs) {
   return (data || []).map(rowToApp);
 }
 
-export async function updateRow(table, id, patch) {
+export async function updateRow(table, id, patch, keyCol = 'id') {
   const row = appToRow(patch, table);
-  delete row.id;
-  const { data, error } = await supabase.from(table).update(row).eq('id', id).select().single();
+  delete row[keyCol];
+  const { data, error } = await supabase.from(table).update(row).eq(keyCol, id).select().single();
   if (error) { console.error(`[api.update ${table}]`, error); return null; }
   return rowToApp(data);
 }
 
-export async function deleteRow(table, id) {
-  const { error } = await supabase.from(table).delete().eq('id', id);
+export async function deleteRow(table, id, keyCol = 'id') {
+  const { error } = await supabase.from(table).delete().eq(keyCol, id);
   if (error) console.error(`[api.delete ${table}]`, error);
 }
 
@@ -88,7 +96,7 @@ export async function deleteRow(table, id) {
 export function subscribeAll(onChange) {
   const tables = [
     'stock_items', 'distributions', 'reorder_requests',
-    'employee_allocations', 'notifications', 'profiles',
+    'employee_allocations', 'notifications', 'profiles', 'pending_users',
   ];
   const channel = supabase.channel('app-db-changes');
   for (const table of tables) {

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import { analyzeAllStock } from '../utils/aiEngine.js';
 import { sendCriticalStockAlert, getEmailConfig } from '../utils/emailService.js';
 import { useAuth } from './AuthContext.jsx';
-import { loadAll, subscribeAll, insertRow, insertRows, updateRow, deleteRow } from '../data/api.js';
+import { loadAll, subscribeAll, insertRow, insertRows, updateRow, deleteRow, pendingToUser } from '../data/api.js';
 
 const AppContext = createContext(null);
 
@@ -67,6 +67,13 @@ function reducer(state, action) {
     case 'UPDATE_USER': return { ...state, users: state.users.map(u => u.id === action.payload.id ? { ...u, ...action.payload } : u) };
     case 'ADD_USER': return { ...state, users: upsert(state.users, action.payload) };
     case 'DELETE_USER': return { ...state, users: state.users.filter(u => u.id !== action.payload) };
+    case 'ADD_PENDING_USER': {
+      const p = action.payload;
+      const row = { id: 'P_' + p.email, email: p.email, name: p.name, role: p.role, status: 'pending', pending: true, avatar: (p.name || p.email).replace(/\s/g, '').slice(0, 2).toUpperCase() };
+      return { ...state, users: upsert(state.users, row) };
+    }
+    case 'UPDATE_PENDING_USER': return { ...state, users: state.users.map(u => u.id === 'P_' + action.payload.email ? { ...u, ...action.payload } : u) };
+    case 'DELETE_PENDING_USER': return { ...state, users: state.users.filter(u => u.id !== 'P_' + action.payload) };
     // Realtime-driven collection mutations
     case 'RT_UPSERT': {
       const key = action.key;
@@ -101,11 +108,12 @@ async function persist(action) {
     case 'MARK_NOTIF_READ': return updateRow('notifications', action.payload, { read: true });
     case 'UPDATE_USER': return updateRow('profiles', action.payload.id, action.payload);
     case 'DELETE_USER': return deleteRow('profiles', action.payload);
+    // Admin invite flow: admin pre-adds a user; they sign up later to set a password.
+    case 'ADD_PENDING_USER': return insertRow('pending_users', { email: action.payload.email, name: action.payload.name, role: action.payload.role });
+    case 'UPDATE_PENDING_USER': return updateRow('pending_users', action.payload.email, { name: action.payload.name, role: action.payload.role }, 'email');
+    case 'DELETE_PENDING_USER': return deleteRow('pending_users', action.payload, 'email');
     case 'ADD_USER':
-      // Creating a real login requires Supabase Auth signup (can't be done from
-      // an admin browser session safely). New logins come through the Sign Up
-      // screen; admins manage role/status of existing profiles via UPDATE_USER.
-      console.warn('[AppContext] ADD_USER is local-only — new logins must use Sign Up.');
+      console.warn('[AppContext] ADD_USER is local-only — use ADD_PENDING_USER for the invite flow.');
       return null;
     default: return null;
   }
@@ -130,6 +138,13 @@ export function AppProvider({ children }) {
       data.notifications = data.notifications.map(n => ({ time: relativeTime(n.createdAt), ...n }));
       rawDispatch({ type: 'LOAD_ALL', payload: data });
       cleanup = subscribeAll((table, eventType, row) => {
+        // pending_users → render as a 'pending' user row keyed by P_<email>
+        if (table === 'pending_users') {
+          const u = pendingToUser({ email: row.email, name: row.name, role: row.role });
+          if (eventType === 'DELETE') rawDispatch({ type: 'RT_DELETE', key: 'users', row: u });
+          else rawDispatch({ type: 'RT_UPSERT', key: 'users', row: u });
+          return;
+        }
         const key = TABLE_TO_KEY[table];
         if (!key) return;
         if (eventType === 'DELETE') rawDispatch({ type: 'RT_DELETE', key, row });
