@@ -25,19 +25,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const stats = await req.json();
+    const body = await req.json();
+    // Generic: accept { title, stats } for ANY report type, or legacy flat stats.
+    const title = body.title || "Inventory Report";
+    const stats = body.stats ?? body;
 
-    const prompt = `You are an inventory analyst. Write a concise, professional executive summary (3-4 short paragraphs, plain prose, no markdown headings or bullet symbols) for a stock availability report, using ONLY these figures — do not invent numbers:
+    const prompt = `You are an inventory operations analyst. Write a concise, professional executive summary (3-4 short paragraphs, plain prose — no markdown headings, no bullet symbols) for the report titled "${title}".
 
-Total SKUs: ${stats.totalSkus}
-Total units: ${stats.totalUnits}
-Categories: ${stats.categoryCount}
-Departments: ${stats.departmentCount}
-Health counts: healthy=${stats.health?.healthy}, low=${stats.health?.low}, critical=${stats.health?.critical}, out_of_stock=${stats.health?.out_of_stock}
-Units by category: ${JSON.stringify(stats.byCategory)}
-Watchlist (items needing attention): ${JSON.stringify(stats.watchlist)}
+Use ONLY the figures in this JSON — do NOT invent or alter any numbers:
+${JSON.stringify(stats, null, 2)}
 
-Cover: overall stock position, health/risk assessment, notable category concentrations, and a clear recommendation on what to reorder or monitor. Keep it factual and under 220 words.`;
+Interpret the data for a manager: state the overall position, highlight the most important patterns or risks, call out anything that needs action, and end with a clear recommendation. Keep it factual and under 220 words.`;
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
