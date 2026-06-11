@@ -97,10 +97,14 @@ export default function UserManagement() {
               <td><span className="badge badge-info">{u.role}</span></td>
               <td className="text-sm">{u.role==='admin' ? '—' : deptName(u.departmentId)}</td>
               <td className="text-sm">{u.role==='executive' ? userName(u.managerId) : '—'}</td>
-              <td><span className={`badge ${u.status==='active'?'badge-active':u.status==='pending'?'badge-warning':'badge-inactive'}`}>{u.status}</span></td>
+              <td><span className={`badge ${u.status==='active'?'badge-active':u.status==='pending'?'badge-warning':'badge-inactive'}`}>{u.pending ? 'awaiting sign-up' : u.status}</span></td>
               <td><div className="table-actions" style={{ display:'flex', gap:6, alignItems:'center' }}>
                 <button className="btn btn-ghost btn-sm" title="Edit user" onClick={() => openEdit(u)}><Edit size={14}/></button>
-                <button className="btn btn-ghost btn-sm" title={u.status==='active'?'Deactivate':'Activate'} onClick={() => toggleStatus(u)}>{u.status==='active'?<ToggleRight size={14} style={{color:'var(--success)'}}/>:<ToggleLeft size={14}/>}</button>
+                {u.pending ? (
+                  <span className="text-xs text-muted" title="This user must sign up to set their password — no activation needed" style={{ minWidth: 90 }}>Invited · can sign up</span>
+                ) : (
+                  <button className="btn btn-ghost btn-sm" title={u.status==='active'?'Deactivate':'Activate'} onClick={() => toggleStatus(u)}>{u.status==='active'?<ToggleRight size={14} style={{color:'var(--success)'}}/>:<ToggleLeft size={14}/>}</button>
+                )}
                 <button className="btn btn-sm" onClick={() => handleDelete(u)} style={{ display:'inline-flex', alignItems:'center', gap:4, color:'#fff', background:'var(--danger)', borderColor:'var(--danger)' }}><Trash2 size={14}/> Remove</button>
               </div></td>
             </tr>
