@@ -68,6 +68,14 @@ export async function loadAll() {
   };
 }
 
+// Re-fetch all stock items (authoritative) — used to force-refresh the UI
+// after a bulk upload instead of depending on realtime delivery.
+export async function fetchStock() {
+  const { data, error } = await supabase.from('stock_items').select('*').order('id');
+  if (error) { console.error('[api.fetchStock]', error); return null; }
+  return (data || []).map(rowToApp);
+}
+
 // ─── Generic CRUD ───────────────────────────────────────────────────────────
 export async function insertRow(table, obj) {
   const { data, error } = await supabase.from(table).insert(appToRow(obj, table)).select().single();

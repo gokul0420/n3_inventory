@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import { analyzeAllStock } from '../utils/aiEngine.js';
 import { sendCriticalStockAlert, getEmailConfig } from '../utils/emailService.js';
 import { useAuth } from './AuthContext.jsx';
-import { loadAll, subscribeAll, insertRow, insertRows, upsertRows, updateRow, deleteRow, pendingToUser } from '../data/api.js';
+import { loadAll, subscribeAll, insertRow, insertRows, upsertRows, updateRow, deleteRow, pendingToUser, fetchStock } from '../data/api.js';
 
 const AppContext = createContext(null);
 
@@ -162,6 +162,13 @@ export function AppProvider({ children }) {
     persist(action).catch(err => console.error('[persist]', err));
   }, []);
 
+  // Force-refresh stock from the DB (authoritative). Call after bulk uploads so
+  // the UI updates instantly without depending on realtime.
+  const reloadStock = useCallback(async () => {
+    const items = await fetchStock();
+    if (items) rawDispatch({ type: 'SET_STOCK', payload: items });
+  }, []);
+
   const addAuditLog = useCallback((entityType, entityId, action, userName, remarks) => {
     dispatch({ type: 'ADD_AUDIT', payload: { id: Date.now(), entityType, entityId, action, user: userName, date: new Date().toISOString(), remarks } });
   }, [dispatch]);
@@ -211,7 +218,7 @@ export function AppProvider({ children }) {
   }, [state.stockItems, state.loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <AppContext.Provider value={{ state, dispatch, addAuditLog, addNotification }}>
+    <AppContext.Provider value={{ state, dispatch, addAuditLog, addNotification, reloadStock }}>
       {children}
     </AppContext.Provider>
   );

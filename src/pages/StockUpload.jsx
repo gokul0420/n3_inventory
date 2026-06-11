@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { downloadTemplate } from '../utils/templateGenerator.js';
 
 export default function StockUpload() {
-  const { state, dispatch, addAuditLog, addNotification } = useApp();
+  const { state, dispatch, addAuditLog, addNotification, reloadStock } = useApp();
   const { user } = useAuth();
   const fileRef = useRef();
   const [dragover, setDragover] = useState(false);
@@ -45,8 +45,11 @@ export default function StockUpload() {
       });
       if (valid.length > 0) {
         dispatch({ type: 'ADD_STOCK', payload: valid });
-        valid.forEach(v => addAuditLog('stock', v.id, 'created', user.name, 'Created via bulk upload'));
+        valid.forEach(v => addAuditLog('stock', v.id, 'created', user.name, 'Created/updated via bulk upload'));
         addNotification('Stock Uploaded', `${valid.length} items uploaded successfully`, 'success');
+        // Best practice: confirm against the DB so the UI shows authoritative
+        // values immediately, regardless of realtime delivery.
+        await reloadStock();
       }
       setResults({ valid, errors, total: rows.length });
     } catch (e) { addNotification('Upload Failed', e.message, 'danger'); }
