@@ -27,7 +27,7 @@ export default function BulkDistributionUpload() {
         if (!row['Recipient']) errs.push('Recipient required');
         if (stock && Number(row['Quantity']) > stock.quantity) errs.push('Exceeds available quantity');
         if (errs.length) errors.push({ row: i + 2, data: row, errors: errs });
-        else valid.push({ id: `DST${String(state.distributions.length + valid.length + 1).padStart(3,'0')}`, stockId: stock.id, stockName: stock.name, quantity: Number(row['Quantity']), recipient: row['Recipient'], date: row['Date'] || new Date().toISOString().split('T')[0], status: 'draft', remarks: row['Remarks'] || '', submittedBy: user.id });
+        else valid.push({ id: `DST-${Date.now().toString(36).toUpperCase()}-${i}`, stockId: stock.id, stockName: stock.name, quantity: Number(row['Quantity']), recipient: row['Recipient'], date: row['Date'] || new Date().toISOString().split('T')[0], status: 'draft', remarks: row['Remarks'] || '', submittedBy: user.id, departmentId: user.departmentId || stock.departmentId || null, managerId: user.managerId || null });
       });
       valid.forEach(v => { dispatch({ type: 'ADD_DISTRIBUTION', payload: v }); addAuditLog('distribution', v.id, 'created', user.name, 'Bulk upload'); });
       if (valid.length) addNotification('Bulk Upload', `${valid.length} distributions created`, 'success');

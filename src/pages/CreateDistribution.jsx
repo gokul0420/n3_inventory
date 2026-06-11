@@ -30,7 +30,9 @@ export default function CreateDistribution() {
   const filteredStocks = activeStocks.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase()));
 
   const save = (status) => {
-    const id = editData?.id || `DST${String(state.distributions.length + 1).padStart(3, '0')}`;
+    // Globally-unique id — must NOT depend on the visible count, because RLS
+    // limits each executive to their own rows (count-based ids would collide).
+    const id = editData?.id || `DST-${Date.now().toString(36).toUpperCase()}`;
     const entry = { id, stockId, stockName: selectedStock?.name, quantity: Number(quantity), recipient, date, status, remarks, submittedBy: user.id, submittedAt: status === 'submitted' ? new Date().toISOString() : null, approvedBy: null, approvedAt: null,
       // Route the request to the executive's assigned manager + tag department.
       departmentId: user.departmentId || selectedStock?.departmentId || null,
