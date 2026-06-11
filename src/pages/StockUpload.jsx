@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { downloadTemplate } from '../utils/templateGenerator.js';
 
 export default function StockUpload() {
-  const { dispatch, addAuditLog, addNotification } = useApp();
+  const { state, dispatch, addAuditLog, addNotification } = useApp();
   const { user } = useAuth();
   const fileRef = useRef();
   const [dragover, setDragover] = useState(false);
@@ -28,8 +28,13 @@ export default function StockUpload() {
         if (!row['Stock Name']) errs.push('Stock Name is required');
         if (!row['Category']) errs.push('Category is required');
         if (!row['Quantity'] || isNaN(row['Quantity'])) errs.push('Valid Quantity is required');
+        // Map the "Department" column (by name) to its id so products are scoped.
+        const deptName = (row['Department'] || '').toString().trim().toLowerCase();
+        const dept = (state.departments || []).find(d => d.name.toLowerCase() === deptName);
+        if (!row['Department']) errs.push('Department is required');
+        else if (!dept) errs.push(`Unknown department "${row['Department']}"`);
         if (errs.length > 0) errors.push({ row: i + 2, data: row, errors: errs });
-        else valid.push({ id: row['Stock Code'], code: row['Stock Code'], name: row['Stock Name'], category: row['Category'], location: row['Location'] || 'Warehouse A', quantity: Number(row['Quantity']), threshold: Number(row['Threshold']) || 10, unit: row['Unit'] || 'Units', status: 'active', createdAt: new Date().toISOString().split('T')[0], updatedAt: new Date().toISOString().split('T')[0] });
+        else valid.push({ id: row['Stock Code'], code: row['Stock Code'], name: row['Stock Name'], category: row['Category'], location: row['Location'] || 'Central Store', quantity: Number(row['Quantity']), threshold: Number(row['Threshold']) || 10, unit: row['Unit'] || 'Units', status: 'active', departmentId: dept.id, createdAt: new Date().toISOString().split('T')[0], updatedAt: new Date().toISOString().split('T')[0] });
       });
       if (valid.length > 0) {
         dispatch({ type: 'ADD_STOCK', payload: valid });

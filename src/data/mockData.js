@@ -12,8 +12,8 @@ export const employeeAllocations = [
   { id: 'EMP-A002', stockId: 'STK005', stockName: 'Wireless Mouse Logitech M720', quantity: 2, employeeId: '12345', employeeEmail: 'abc@gmail.com', employeeName: 'Test Employee', purpose: 'Peripherals for new setup', status: 'pending_approval', createdBy: 1, createdAt: '2026-05-24T14:00:00', approvedBy: null, approvedAt: null, rejectionReason: null, acceptedAt: null, employeeRejectionReason: null, collectionLocation: 'HQ Store', receivedAt: null },
 ];
 
-const categories = ['Electronics', 'Furniture', 'Stationery', 'Safety Equipment', 'Cleaning Supplies', 'IT Hardware'];
-const locations = ['Warehouse A', 'Warehouse B', 'Branch Office Delhi', 'Branch Office Mumbai', 'HQ Store'];
+const categories = ['Merchandise', 'IT Equipment', 'Apparel', 'Accessories', 'Electronics'];
+const locations = ['Hexavarsity Store', 'STG Warehouse', 'Central Store'];
 
 export const stockItems = [
   { id: 'STK001', code: 'STK001', name: 'Laptop Dell Latitude 5540', category: 'Electronics', location: 'Warehouse A', quantity: 45, threshold: 10, unit: 'Units', status: 'active', createdAt: '2026-03-15', updatedAt: '2026-04-28' },
