@@ -28,11 +28,18 @@ export default function StockUpload() {
         if (!row['Stock Name']) errs.push('Stock Name is required');
         if (!row['Category']) errs.push('Category is required');
         if (!row['Quantity'] || isNaN(row['Quantity'])) errs.push('Valid Quantity is required');
-        // Map the "Department" column (by name) to its id so products are scoped.
-        const deptName = (row['Department'] || '').toString().trim().toLowerCase();
-        const dept = (state.departments || []).find(d => d.name.toLowerCase() === deptName);
-        if (!row['Department']) errs.push('Department is required');
-        else if (!dept) errs.push(`Unknown department "${row['Department']}"`);
+        // Resolve the product's department. Non-admins can only upload into
+        // their OWN department (the Department column is ignored for them).
+        let dept;
+        if (user.role === 'admin') {
+          const deptName = (row['Department'] || '').toString().trim().toLowerCase();
+          dept = (state.departments || []).find(d => d.name.toLowerCase() === deptName);
+          if (!row['Department']) errs.push('Department is required');
+          else if (!dept) errs.push(`Unknown department "${row['Department']}"`);
+        } else {
+          dept = (state.departments || []).find(d => d.id === user.departmentId);
+          if (!dept) errs.push('Your account has no department assigned.');
+        }
         if (errs.length > 0) errors.push({ row: i + 2, data: row, errors: errs });
         else valid.push({ id: row['Stock Code'], code: row['Stock Code'], name: row['Stock Name'], category: row['Category'], location: row['Location'] || 'Central Store', quantity: Number(row['Quantity']), threshold: Number(row['Threshold']) || 10, unit: row['Unit'] || 'Units', status: 'active', departmentId: dept.id, createdAt: new Date().toISOString().split('T')[0], updatedAt: new Date().toISOString().split('T')[0] });
       });
@@ -44,6 +51,19 @@ export default function StockUpload() {
       setResults({ valid, errors, total: rows.length });
     } catch (e) { addNotification('Upload Failed', e.message, 'danger'); }
     setUploading(false);
+  };
+
+  // Download a template pre-filled with the user's OWN department products as
+  // the sample rows (admins get a generic multi-department template).
+  const handleDownloadTemplate = () => {
+    const dept = (state.departments || []).find(d => d.id === user.departmentId);
+    if (user.role === 'admin' || !dept) { downloadTemplate('stock_upload'); return; }
+    const deptProducts = state.stockItems.filter(s => s.departmentId === dept.id && s.status !== 'deleted');
+    const sampleRows = deptProducts.map(s => [s.code, s.name, dept.name, s.category, s.location, s.quantity, s.threshold, s.unit]);
+    downloadTemplate('stock_upload', {
+      sampleRows: sampleRows.length ? sampleRows : [['NEW001', 'New Product', dept.name, 'Merchandise', 'Central Store', 100, 20, 'Units']],
+      filename: `stock_upload_${dept.name.replace(/\s/g, '_')}.xlsx`,
+    });
   };
 
   const handleDrop = (e) => { e.preventDefault(); setDragover(false); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); };
@@ -59,7 +79,7 @@ export default function StockUpload() {
   return (
     <div className="fade-in">
       <div className="page-header"><div><h1 className="page-title">Upload Stock Master</h1><p className="page-subtitle">Bulk upload stock items via Excel</p></div>
-        <button className="btn btn-secondary" onClick={() => downloadTemplate('stock_upload')}><Download size={16} /> Download Template</button>
+        <button className="btn btn-secondary" onClick={handleDownloadTemplate}><Download size={16} /> Download Template</button>
       </div>
       {!results ? (
         <div className="card">

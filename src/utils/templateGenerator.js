@@ -115,7 +115,7 @@ export const TEMPLATES = {
  * Generate a styled Excel workbook for a given template definition.
  * Includes a "Data" sheet (headers + sample rows) and an "Instructions" sheet.
  */
-export function generateTemplate(templateId) {
+export function generateTemplate(templateId, overrides = {}) {
   const tmpl = TEMPLATES[templateId];
   if (!tmpl) throw new Error(`Unknown template: ${templateId}`);
 
@@ -123,7 +123,9 @@ export function generateTemplate(templateId) {
 
   // ── Data Sheet ──
   const headers = tmpl.columns.map(c => c.header);
-  const dataRows = [headers, ...tmpl.sampleRows];
+  // Callers may supply department-specific sample rows.
+  const sampleRows = overrides.sampleRows && overrides.sampleRows.length ? overrides.sampleRows : tmpl.sampleRows;
+  const dataRows = [headers, ...sampleRows];
   const wsData = XLSX.utils.aoa_to_sheet(dataRows);
 
   // Set column widths
@@ -174,10 +176,10 @@ export function generateTemplate(templateId) {
 /**
  * Generate and download a template as an Excel file.
  */
-export function downloadTemplate(templateId) {
+export function downloadTemplate(templateId, overrides = {}) {
   const tmpl = TEMPLATES[templateId];
-  const wb = generateTemplate(templateId);
-  XLSX.writeFile(wb, tmpl.filename);
+  const wb = generateTemplate(templateId, overrides);
+  XLSX.writeFile(wb, overrides.filename || tmpl.filename);
 }
 
 /**
