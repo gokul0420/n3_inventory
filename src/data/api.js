@@ -81,6 +81,17 @@ export async function insertRows(table, objs) {
   return (data || []).map(rowToApp);
 }
 
+// Insert-or-update by primary key — used by bulk upload so re-uploading an
+// existing stock code updates its quantity instead of failing on conflict.
+export async function upsertRows(table, objs) {
+  const { data, error } = await supabase
+    .from(table)
+    .upsert(objs.map((o) => appToRow(o, table)), { onConflict: 'id' })
+    .select();
+  if (error) { console.error(`[api.upsert ${table}]`, error); return []; }
+  return (data || []).map(rowToApp);
+}
+
 export async function updateRow(table, id, patch, keyCol = 'id') {
   const row = appToRow(patch, table);
   delete row[keyCol];

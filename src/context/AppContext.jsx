@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import { analyzeAllStock } from '../utils/aiEngine.js';
 import { sendCriticalStockAlert, getEmailConfig } from '../utils/emailService.js';
 import { useAuth } from './AuthContext.jsx';
-import { loadAll, subscribeAll, insertRow, insertRows, updateRow, deleteRow, pendingToUser } from '../data/api.js';
+import { loadAll, subscribeAll, insertRow, insertRows, upsertRows, updateRow, deleteRow, pendingToUser } from '../data/api.js';
 
 const AppContext = createContext(null);
 
@@ -95,7 +95,7 @@ function reducer(state, action) {
 // reconciles the authoritative row. Returns a promise (errors are logged).
 async function persist(action) {
   switch (action.type) {
-    case 'ADD_STOCK': return insertRows('stock_items', action.payload);
+    case 'ADD_STOCK': return upsertRows('stock_items', action.payload);
     case 'UPDATE_STOCK': return updateRow('stock_items', action.payload.id, action.payload);
     case 'DELETE_STOCK': return updateRow('stock_items', action.payload, { status: 'deleted' });
     case 'ADD_DISTRIBUTION': return insertRow('distributions', action.payload);
