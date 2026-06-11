@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { categories, locations } from '../data/mockData.js';
+import { buildStockAvailabilityPDF, computeStockStats, computedSummary } from '../utils/stockReport.js';
+import { supabase } from '../lib/supabaseClient.js';
 
 const titles = { 'stock-availability': 'Current Stock Availability', 'distributed-stock': 'Distributed Stock Report', 'pending-approval': 'Pending Approval Report', 'approval-history': 'Approval History', 'stock-movement': 'Stock Movement Ledger' };
 
@@ -33,7 +35,37 @@ export default function ReportView() {
     XLSX.writeFile(wb, `${type}_report.xlsx`);
   };
 
-  const exportPDF = () => {
+  const [generating, setGenerating] = useState(false);
+
+  // Try to get an AI-written executive summary from the Supabase Edge Function.
+  // Falls back to the computed summary if the function isn't deployed / errors.
+  const fetchAiSummary = async (stats) => {
+    try {
+      const payload = {
+        totalSkus: stats.totalSkus, totalUnits: stats.totalUnits,
+        health: stats.health, categoryCount: stats.categoryCount,
+        departmentCount: stats.departmentCount,
+        byCategory: Object.fromEntries(Object.entries(stats.byCat).map(([k, v]) => [k, v.units])),
+        watchlist: stats.watchlist.slice(0, 10).map(w => ({ name: w.name, qty: w.qty, status: w.health, suggested: w.suggested })),
+      };
+      const { data, error } = await supabase.functions.invoke('smart-worker', { body: payload });
+      if (error || !data?.summary) return null;
+      return data.summary;
+    } catch { return null; }
+  };
+
+  const exportPDF = async () => {
+    // Rich, multi-page analytical report for stock availability.
+    if (type === 'stock-availability') {
+      setGenerating(true);
+      const stats = computeStockStats(state);
+      const aiSummary = await fetchAiSummary(stats);   // null → computed fallback
+      const doc = buildStockAvailabilityPDF(state, aiSummary);
+      doc.save('stock-availability_report.pdf');
+      setGenerating(false);
+      return;
+    }
+    // Other reports keep the simple table export.
     const doc = new jsPDF();
     doc.setFontSize(16); doc.text(titles[type] || 'Report', 14, 22);
     autoTable(doc, { head: [columns], body: data, startY: 30, styles: { fontSize: 8 } });
@@ -44,7 +76,7 @@ export default function ReportView() {
     <div className="fade-in">
       <div className="page-header">
         <div><button className="btn btn-ghost" onClick={() => navigate('/reports')}><ArrowLeft size={16}/> Back</button><h1 className="page-title mt-2">{titles[type]}</h1></div>
-        <div className="page-actions"><button className="btn btn-secondary" onClick={exportExcel}><FileSpreadsheet size={16}/> Excel</button><button className="btn btn-secondary" onClick={exportPDF}><FileText size={16}/> PDF</button></div>
+        <div className="page-actions"><button className="btn btn-secondary" onClick={exportExcel}><FileSpreadsheet size={16}/> Excel</button><button className="btn btn-secondary" onClick={exportPDF} disabled={generating}><FileText size={16}/> {generating ? 'Generating…' : (type==='stock-availability' ? 'Analytical PDF' : 'PDF')}</button></div>
       </div>
       {type === 'stock-availability' && <div className="filter-bar">
         <select className="form-select" style={{width:180}} value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option value="">All Categories</option>{categories.map(c=><option key={c}>{c}</option>)}</select>
