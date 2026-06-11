@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
+import { rowToApp } from '../data/api.js';
 
 const AuthContext = createContext(null);
 
-// Fetch the app-level profile (role/status/name) for an auth user id.
+// Fetch the app-level profile (role/status/name/department/manager) and convert
+// snake_case DB columns to the camelCase the app uses (departmentId, managerId).
 async function fetchProfile(userId) {
   const { data, error } = await supabase
     .from('profiles')
@@ -11,7 +13,7 @@ async function fetchProfile(userId) {
     .eq('id', userId)
     .single();
   if (error) return null;
-  return data;
+  return rowToApp(data);
 }
 
 export function AuthProvider({ children }) {
