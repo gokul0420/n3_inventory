@@ -17,6 +17,8 @@ export default function StockMasterList() {
 
   const items = state.stockItems.filter(s => {
     if (s.status === 'deleted') return false;
+    // Department scoping: non-admins only see their department's products.
+    if (user.role !== 'admin' && s.departmentId !== user.departmentId) return false;
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.code.toLowerCase().includes(search.toLowerCase())) return false;
     if (catFilter && s.category !== catFilter) return false;
     if (locFilter && s.location !== locFilter) return false;

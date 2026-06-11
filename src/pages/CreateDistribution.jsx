@@ -20,14 +20,21 @@ export default function CreateDistribution() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [submitModal, setSubmitModal] = useState(false);
 
-  const activeStocks = state.stockItems.filter(s => s.status === 'active');
+  // Department scoping: executives/managers only see their department's
+  // products; admins see everything.
+  const activeStocks = state.stockItems.filter(s =>
+    s.status === 'active' && (user.role === 'admin' || s.departmentId === user.departmentId)
+  );
   const selectedStock = activeStocks.find(s => s.id === stockId);
   const postQty = selectedStock ? selectedStock.quantity - Number(quantity || 0) : null;
   const filteredStocks = activeStocks.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase()));
 
   const save = (status) => {
     const id = editData?.id || `DST${String(state.distributions.length + 1).padStart(3, '0')}`;
-    const entry = { id, stockId, stockName: selectedStock?.name, quantity: Number(quantity), recipient, date, status, remarks, submittedBy: user.id, submittedAt: status === 'submitted' ? new Date().toISOString() : null, approvedBy: null, approvedAt: null };
+    const entry = { id, stockId, stockName: selectedStock?.name, quantity: Number(quantity), recipient, date, status, remarks, submittedBy: user.id, submittedAt: status === 'submitted' ? new Date().toISOString() : null, approvedBy: null, approvedAt: null,
+      // Route the request to the executive's assigned manager + tag department.
+      departmentId: user.departmentId || selectedStock?.departmentId || null,
+      managerId: user.managerId || null };
     if (editData) dispatch({ type: 'UPDATE_DISTRIBUTION', payload: entry });
     else dispatch({ type: 'ADD_DISTRIBUTION', payload: entry });
     addAuditLog('distribution', id, status === 'submitted' ? 'submitted' : 'created', user.name, remarks || `Distribution ${status}`);

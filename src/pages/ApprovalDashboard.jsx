@@ -1,12 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { ClipboardCheck, Clock, Shield, AlertTriangle } from 'lucide-react';
 
 export default function ApprovalDashboard() {
   const { state } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const pending = state.distributions.filter(d => d.status === 'submitted');
+  // A manager only sees requests routed to them; admins see all.
+  const pending = state.distributions.filter(d =>
+    d.status === 'submitted' && (user.role === 'admin' || d.managerId === user.id)
+  );
   const slaBreaches = pending.filter(d => d.submittedAt && (Date.now() - new Date(d.submittedAt).getTime()) > 48*3600000);
   const highRisk = pending.filter(d => { const s = state.stockItems.find(s => s.id === d.stockId); return s && d.quantity > s.quantity * 0.5; });
 

@@ -15,8 +15,13 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, employeeLogin, signup, employeeSignup } = useAuth();
+  const { login, employeeLogin, signup, employeeSignup, user, authReady } = useAuth();
   const navigate = useNavigate();
+
+  // If already signed in (e.g. after refresh), go straight to the dashboard.
+  React.useEffect(() => {
+    if (authReady && user) navigate(`/${user.role}`, { replace: true });
+  }, [authReady, user, navigate]);
 
   const resetForm = () => {
     setEmail(''); setPassword(''); setConfirmPassword(''); setEmployeeId('');

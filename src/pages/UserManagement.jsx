@@ -7,28 +7,50 @@ export default function UserManagement() {
   const { state, dispatch, addNotification } = useApp();
   const { user: currentUser } = useAuth();
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'executive', status: 'active' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '' });
 
-  const openCreate = () => { setForm({ name: '', email: '', role: 'executive', status: 'active' }); setModal('create'); };
-  const openEdit = (u) => { setForm({ ...u }); setModal('edit'); };
+  const departments = state.departments || [];
+  const deptName = (id) => departments.find(d => d.id === id)?.name || '—';
+  const userName = (id) => state.users.find(u => u.id === id)?.name || '—';
+  // Registered (non-pending) managers in a given department — valid to assign.
+  const managersIn = (deptId) => state.users.filter(u => u.role === 'manager' && !u.pending && u.departmentId === deptId);
+
+  const openCreate = () => { setForm({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '' }); setModal('create'); };
+  const openEdit = (u) => { setForm({ ...u, departmentId: u.departmentId || '', managerId: u.managerId || '' }); setModal('edit'); };
+
+  // Hierarchy rules: managers & executives need a department; executives also
+  // need an assigned manager.
+  const validateMapping = () => {
+    if ((form.role === 'manager' || form.role === 'executive') && !form.departmentId) {
+      addNotification('Department required', `A ${form.role} must be assigned to a department.`, 'danger');
+      return false;
+    }
+    if (form.role === 'executive' && !form.managerId) {
+      addNotification('Manager required', 'An executive must be mapped to a manager in their department.', 'danger');
+      return false;
+    }
+    return true;
+  };
 
   const handleSave = () => {
+    if (!validateMapping()) return;
+    // Admins aren't tied to a department/manager.
+    const dept = form.role === 'admin' ? null : (form.departmentId || null);
+    const mgr = form.role === 'executive' ? (form.managerId || null) : null;
+
     if (modal === 'create') {
       const email = form.email.trim().toLowerCase();
       if (state.users.some(u => u.email?.toLowerCase() === email)) {
         addNotification('Already exists', `${email} is already in the system.`, 'danger');
         return;
       }
-      // Admin invite: create a PENDING entry. The person signs up later to set
-      // their password; their role is locked to what the admin chose here.
-      dispatch({ type: 'ADD_PENDING_USER', payload: { name: form.name.trim(), email, role: form.role } });
+      dispatch({ type: 'ADD_PENDING_USER', payload: { name: form.name.trim(), email, role: form.role, departmentId: dept, managerId: mgr } });
       addNotification('User Invited', `${form.name} added as ${form.role}. They can now sign up to set their password.`, 'success');
     } else if (form.pending) {
-      // Editing an invite that hasn't signed up yet → update the pending row.
-      dispatch({ type: 'UPDATE_PENDING_USER', payload: { email: form.email, name: form.name.trim(), role: form.role } });
+      dispatch({ type: 'UPDATE_PENDING_USER', payload: { email: form.email, name: form.name.trim(), role: form.role, departmentId: dept, managerId: mgr } });
       addNotification('Invite Updated', `${form.name} updated`, 'info');
     } else {
-      dispatch({ type: 'UPDATE_USER', payload: { id: form.id, name: form.name.trim(), role: form.role, status: form.status } });
+      dispatch({ type: 'UPDATE_USER', payload: { id: form.id, name: form.name.trim(), role: form.role, status: form.status, departmentId: dept, managerId: mgr } });
       addNotification('User Updated', `${form.name} updated`, 'info');
     }
     setModal(null);
@@ -67,12 +89,14 @@ export default function UserManagement() {
       </div>
       <div className="table-container">
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Manager</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>{state.users.map(u => (
             <tr key={u.id}>
               <td><div className="flex items-center gap-3"><div className="user-avatar" style={{width:32,height:32,fontSize:'.75rem'}}>{u.avatar}</div><span className="font-medium">{u.name}</span></div></td>
               <td>{u.email}</td>
               <td><span className="badge badge-info">{u.role}</span></td>
+              <td className="text-sm">{u.role==='admin' ? '—' : deptName(u.departmentId)}</td>
+              <td className="text-sm">{u.role==='executive' ? userName(u.managerId) : '—'}</td>
               <td><span className={`badge ${u.status==='active'?'badge-active':u.status==='pending'?'badge-warning':'badge-inactive'}`}>{u.status}</span></td>
               <td><div className="table-actions" style={{ display:'flex', gap:6, alignItems:'center' }}>
                 <button className="btn btn-ghost btn-sm" title="Edit user" onClick={() => openEdit(u)}><Edit size={14}/></button>
@@ -89,7 +113,26 @@ export default function UserManagement() {
           <div className="modal-body">
             <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Enter name"/></div>
             <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" value={form.email} disabled={modal==='edit'} onChange={e => setForm({...form, email: e.target.value})} placeholder="Enter email"/></div>
-            <div className="form-group"><label className="form-label">Role</label><select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value})}><option value="executive">Executive</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+            <div className="form-group"><label className="form-label">Role</label><select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value, managerId: ''})}><option value="executive">Executive</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+            {form.role !== 'admin' && (
+              <div className="form-group"><label className="form-label">Department</label>
+                <select className="form-select" value={form.departmentId || ''} onChange={e => setForm({...form, departmentId: e.target.value, managerId: ''})}>
+                  <option value="">— Select department —</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+            )}
+            {form.role === 'executive' && (
+              <div className="form-group"><label className="form-label">Assigned Manager</label>
+                <select className="form-select" value={form.managerId || ''} disabled={!form.departmentId} onChange={e => setForm({...form, managerId: e.target.value})}>
+                  <option value="">{form.departmentId ? '— Select manager —' : 'Select a department first'}</option>
+                  {managersIn(form.departmentId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                {form.departmentId && managersIn(form.departmentId).length === 0 && (
+                  <p className="text-sm" style={{ color:'var(--danger)', marginTop:4 }}>No active managers in this department yet. Add &amp; have a manager sign up first.</p>
+                )}
+              </div>
+            )}
             {modal==='edit' && !form.pending && (
               <div className="form-group"><label className="form-label">Status</label><select className="form-select" value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
             )}

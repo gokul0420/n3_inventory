@@ -43,7 +43,7 @@ export function pendingToUser(row) {
 }
 
 export async function loadAll() {
-  const [stock, dist, reorder, alloc, audit, notif, profiles, pending] = await Promise.all([
+  const [stock, dist, reorder, alloc, audit, notif, profiles, pending, depts] = await Promise.all([
     supabase.from('stock_items').select('*').order('id'),
     supabase.from('distributions').select('*').order('created_at', { ascending: false }),
     supabase.from('reorder_requests').select('*').order('request_date', { ascending: false }),
@@ -52,8 +52,9 @@ export async function loadAll() {
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('*').order('name'),
     supabase.from('pending_users').select('*').order('created_at', { ascending: false }),
+    supabase.from('departments').select('*').order('name'),
   ]);
-  const err = [stock, dist, reorder, alloc, audit, notif, profiles, pending].find((r) => r.error);
+  const err = [stock, dist, reorder, alloc, audit, notif, profiles, pending, depts].find((r) => r.error);
   if (err) console.error('[api.loadAll]', err.error);
   return {
     stockItems: (stock.data || []).map(rowToApp),
@@ -63,6 +64,7 @@ export async function loadAll() {
     auditLogs: (audit.data || []).map(rowToApp),
     notifications: (notif.data || []).map(rowToApp),
     users: [...(profiles.data || []).map(rowToApp), ...(pending.data || []).map(pendingToUser)],
+    departments: (depts.data || []).map(rowToApp),
   };
 }
 
@@ -96,7 +98,7 @@ export async function deleteRow(table, id, keyCol = 'id') {
 export function subscribeAll(onChange) {
   const tables = [
     'stock_items', 'distributions', 'reorder_requests',
-    'employee_allocations', 'notifications', 'profiles', 'pending_users',
+    'employee_allocations', 'notifications', 'profiles', 'pending_users', 'departments',
   ];
   const channel = supabase.channel('app-db-changes');
   for (const table of tables) {

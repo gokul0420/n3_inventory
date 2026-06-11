@@ -29,15 +29,25 @@ import TemplateCenter from './pages/TemplateCenter.jsx';
 import ReorderRequests from './pages/ReorderRequests.jsx';
 import ReorderApprovals from './pages/ReorderApprovals.jsx';
 
+function AuthLoading() {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh' }}>
+      <span className="spinner" style={{ width:32, height:32, borderWidth:3 }} />
+    </div>
+  );
+}
+
 function ProtectedRoute({ children, roles }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, authReady } = useAuth();
+  if (!authReady) return <AuthLoading />;            // wait for session restore
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (roles && !roles.includes(user.role)) return <Navigate to={`/${user.role}`} />;
   return children;
 }
 
 function DashboardRedirect() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, authReady } = useAuth();
+  if (!authReady) return <AuthLoading />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   return <Navigate to={`/${user.role}`} />;
 }
