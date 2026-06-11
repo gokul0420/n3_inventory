@@ -14,7 +14,7 @@ export default function StockUpload() {
   const [preview, setPreview] = useState(null);   // { valid, errors, total } — NOT yet committed
   const [committing, setCommitting] = useState(false);
   const [results, setResults] = useState(null);    // post-confirm summary
-  const [addMode, setAddMode] = useState(false);    // add to existing vs replace
+  const [addMode, setAddMode] = useState(true);     // default: add to existing (restock)
 
   // ── Step 1: parse + validate only (no DB write yet) ──────────────────────
   const parseFile = async (file) => {
