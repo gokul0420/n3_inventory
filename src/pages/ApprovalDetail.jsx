@@ -21,6 +21,11 @@ export default function ApprovalDetail() {
 
   if (!dist) return <div className="card"><div className="empty-state"><h3>Distribution not found</h3></div></div>;
 
+  // Enforce routing: a manager may only open requests assigned to them.
+  if (user.role === 'manager' && dist.managerId && dist.managerId !== user.id) {
+    return <div className="card"><div className="empty-state"><XCircle size={48} /><h3>Not authorized</h3><p>This request is assigned to a different manager.</p><button className="btn btn-secondary mt-4" onClick={() => navigate('/approvals')}>Back to Approvals</button></div></div>;
+  }
+
   const handleApprove = () => {
     dispatch({ type: 'UPDATE_DISTRIBUTION', payload: { id: dist.id, status: 'approved', approvedBy: user.id, approvedAt: new Date().toISOString() }});
     if (stock) dispatch({ type: 'UPDATE_STOCK', payload: { id: stock.id, quantity: postQty }});

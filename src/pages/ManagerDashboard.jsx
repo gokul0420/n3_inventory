@@ -1,12 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { ClipboardCheck, AlertTriangle, Clock, Shield, ArrowRight, Users, ShoppingCart } from 'lucide-react';
 
 export default function ManagerDashboard() {
   const { state } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const pending = state.distributions.filter(d => d.status === 'submitted');
+  // A manager only sees requests routed to them; admins see all.
+  const pending = state.distributions.filter(d =>
+    d.status === 'submitted' && (user.role === 'admin' || d.managerId === user.id)
+  );
   const slaBreaches = pending.filter(d => {
     const submitted = new Date(d.submittedAt);
     return (Date.now() - submitted.getTime()) > 48 * 60 * 60 * 1000;
