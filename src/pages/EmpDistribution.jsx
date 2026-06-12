@@ -20,6 +20,8 @@ export default function EmpDistribution() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [quantity, setQuantity] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [receivingLocation, setReceivingLocation] = useState('');
+  const [expectedBy, setExpectedBy] = useState('');
   const [submitModal, setSubmitModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -61,7 +63,8 @@ export default function EmpDistribution() {
       managerId: user.managerId || null, departmentId: user.departmentId || null,
       approvedBy: null, approvedAt: null, rejectionReason: null,
       acceptedAt: null, employeeRejectionReason: null,
-      collectionLocation: selectedStock.location, receivedAt: null,
+      collectionLocation: receivingLocation.trim() || selectedStock.location,
+      expectedBy: expectedBy || null, receivedAt: null,
     };
     dispatch({ type: 'ADD_EMPLOYEE_ALLOCATION', payload: alloc });
     addAuditLog('employee_allocation', allocId, 'created', user.name, `Employee distribution to ${empLookup.name}`);
@@ -69,7 +72,7 @@ export default function EmpDistribution() {
     setSubmitModal(false);
     setSuccessMsg(`Allocation ${allocId} created and sent for manager approval.`);
     // Reset form
-    setEmpId(''); setEmpLookup(null); setStockId(''); setSearch(''); setQuantity(''); setPurpose('');
+    setEmpId(''); setEmpLookup(null); setStockId(''); setSearch(''); setQuantity(''); setPurpose(''); setReceivingLocation(''); setExpectedBy('');
   };
 
   // Bulk
@@ -103,7 +106,8 @@ export default function EmpDistribution() {
             managerId: user.managerId || null, departmentId: user.departmentId || null,
             approvedBy: null, approvedAt: null, rejectionReason: null,
             acceptedAt: null, employeeRejectionReason: null,
-            collectionLocation: stock.location, receivedAt: null,
+            collectionLocation: (row['Receiving Location'] || '').toString().trim() || stock.location,
+            expectedBy: row['Expected By'] || null, receivedAt: null,
           });
         }
       });
@@ -292,12 +296,23 @@ export default function EmpDistribution() {
           </div>
 
           <div className="form-group">
+            <label className="form-label">Receiving / Collection Location *</label>
+            <input className="form-input" value={receivingLocation} onChange={e => setReceivingLocation(e.target.value)} placeholder={selectedStock ? `e.g., ${selectedStock.location}` : 'Where the employee collects the item'} />
+            <span className="text-xs text-muted">Shown to the employee after they accept the allocation.</span>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Expected By (collection date)</label>
+            <input className="form-input" type="date" value={expectedBy} onChange={e => setExpectedBy(e.target.value)} />
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Purpose / Remarks</label>
             <textarea className="form-textarea" value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="e.g., Laptop allocated for project work" />
           </div>
 
           <button className="btn btn-primary w-full" onClick={() => setSubmitModal(true)}
-            disabled={!empLookup || !stockId || !quantity || postQty < 0}
+            disabled={!empLookup || !stockId || !quantity || postQty < 0 || !receivingLocation.trim()}
             style={{ justifyContent: 'center' }}>
             <Send size={16} /> Submit for Manager Approval
           </button>

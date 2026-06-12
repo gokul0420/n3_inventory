@@ -75,12 +75,13 @@ export const TEMPLATES = {
       { header: 'Employee Email', key: 'Employee Email', width: 26, required: true, description: 'Employee\'s registered email address. Must match the email on file for the given Employee ID.', example: 'abc@gmail.com' },
       { header: 'Item Name', key: 'Item Name', width: 32, required: true, description: 'Full name or stock code of the inventory item. Must match an item in Stock Master.', example: 'Laptop Dell Latitude 5540' },
       { header: 'Quantity', key: 'Quantity', width: 10, required: true, description: 'Number of units to allocate. Must be a positive number and not exceed available stock.', example: '1' },
+      { header: 'Receiving Location', key: 'Receiving Location', width: 22, required: false, description: 'Where the employee collects the item. Defaults to the stock location if left blank.', example: 'Hexavarsity Store' },
+      { header: 'Expected By', key: 'Expected By', width: 14, required: false, description: 'Expected collection date (YYYY-MM-DD). Optional.', example: '2026-06-20' },
       { header: 'Purpose / Remarks', key: 'Purpose / Remarks', width: 34, required: false, description: 'Reason for allocation (e.g., project assignment, replacement, new joinee setup).', example: 'Laptop for project work' },
     ],
     sampleRows: [
-      ['12345', 'abc@gmail.com', 'Laptop Dell Latitude 5540', 1, 'Laptop for project work'],
-      ['12345', 'abc@gmail.com', 'Wireless Mouse Logitech M720', 1, 'Peripheral setup'],
-      ['12345', 'abc@gmail.com', 'USB-C Hub Multiport', 1, 'Workstation accessories'],
+      ['1920', 'anu12@gmail.com', 'Coffee Mug', 1, 'Hexavarsity Store', '2026-06-20', 'Welcome kit'],
+      ['1920', 'anu12@gmail.com', 'T-Shirt', 2, 'Hexavarsity Store', '', 'Team merch'],
     ],
   },
 

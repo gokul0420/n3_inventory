@@ -91,6 +91,7 @@ export default function EmployeeAllocations() {
               <div className="form-group"><label className="form-label">Quantity</label><div className="text-sm font-semibold">{alloc.quantity}</div></div>
               <div className="form-group"><label className="form-label">Allocated Date</label><div className="text-sm">{new Date(alloc.createdAt).toLocaleDateString()}</div></div>
             </div>
+            {alloc.expectedBy && <div className="form-group"><label className="form-label">Expected By</label><div className="text-sm font-medium">{new Date(alloc.expectedBy).toLocaleDateString()}</div></div>}
             {alloc.purpose && <div className="form-group"><label className="form-label">Purpose / Remarks</label><div className="text-sm">{alloc.purpose}</div></div>}
             {alloc.rejectionReason && <div className="form-group"><label className="form-label">Manager Rejection Reason</label><div className="text-sm text-danger">{alloc.rejectionReason}</div></div>}
             {alloc.employeeRejectionReason && <div className="form-group"><label className="form-label">Your Rejection Reason</label><div className="text-sm text-danger">{alloc.employeeRejectionReason}</div></div>}
@@ -115,6 +116,7 @@ export default function EmployeeAllocations() {
                   <MapPin size={18} />
                   <span>{alloc.collectionLocation}</span>
                 </div>
+                {alloc.expectedBy && <div className="text-sm text-muted mt-2"><Clock size={14} style={{ display:'inline', verticalAlign:'middle' }} /> Expected by {new Date(alloc.expectedBy).toLocaleDateString()}</div>}
               </div>
             )}
 
