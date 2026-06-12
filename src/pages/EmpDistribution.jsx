@@ -89,10 +89,15 @@ export default function EmpDistribution() {
       rows.forEach((row, i) => {
         const errs = [];
         const emp = findEmployee(String(row['Employee ID'] || ''));
-        const stock = activeStocks.find(s => s.name === row['Item Name'] || s.code === row['Item Name']);
+        // Match against ALL active stock by name or code (case/space tolerant),
+        // then validate department separately for a clearer error.
+        const itemKey = (row['Item Name'] || '').toString().trim().toLowerCase();
+        const stock = state.stockItems.find(s => s.status === 'active' &&
+          (s.name.toLowerCase() === itemKey || (s.code || '').toLowerCase() === itemKey));
         if (!emp) errs.push('Employee ID not found');
         if (emp && row['Employee Email'] && emp.email !== row['Employee Email']) errs.push('Email mismatch');
         if (!stock) errs.push('Item not found in stock');
+        else if (user.role !== 'admin' && user.departmentId && stock.departmentId !== user.departmentId) errs.push('Item is not in your department');
         if (!row['Quantity'] || isNaN(row['Quantity']) || Number(row['Quantity']) <= 0) errs.push('Valid quantity required');
         if (stock && Number(row['Quantity']) > stock.quantity) errs.push(`Exceeds available stock (${stock.quantity})`);
         if (errs.length) { errors.push({ row: i + 2, data: row, errors: errs }); }
