@@ -71,7 +71,7 @@ function reducer(state, action) {
     case 'DELETE_USER': return { ...state, users: state.users.filter(u => u.id !== action.payload) };
     case 'ADD_PENDING_USER': {
       const p = action.payload;
-      const row = { id: 'P_' + p.email, email: p.email, name: p.name, role: p.role, status: 'pending', pending: true, departmentId: p.departmentId || null, managerId: p.managerId || null, avatar: (p.name || p.email).replace(/\s/g, '').slice(0, 2).toUpperCase() };
+      const row = { id: 'P_' + p.email, email: p.email, name: p.name, role: p.role, status: 'pending', pending: true, departmentId: p.departmentId || null, managerId: p.managerId || null, employeeId: p.employeeId || null, avatar: (p.name || p.email).replace(/\s/g, '').slice(0, 2).toUpperCase() };
       return { ...state, users: upsert(state.users, row) };
     }
     case 'UPDATE_PENDING_USER': return { ...state, users: state.users.map(u => u.id === 'P_' + action.payload.email ? { ...u, ...action.payload } : u) };
@@ -111,8 +111,8 @@ async function persist(action) {
     case 'UPDATE_USER': return updateRow('profiles', action.payload.id, action.payload);
     case 'DELETE_USER': return deleteRow('profiles', action.payload);
     // Admin invite flow: admin pre-adds a user; they sign up later to set a password.
-    case 'ADD_PENDING_USER': return insertRow('pending_users', { email: action.payload.email, name: action.payload.name, role: action.payload.role, departmentId: action.payload.departmentId || null, managerId: action.payload.managerId || null });
-    case 'UPDATE_PENDING_USER': return updateRow('pending_users', action.payload.email, { name: action.payload.name, role: action.payload.role, departmentId: action.payload.departmentId || null, managerId: action.payload.managerId || null }, 'email');
+    case 'ADD_PENDING_USER': return insertRow('pending_users', { email: action.payload.email, name: action.payload.name, role: action.payload.role, departmentId: action.payload.departmentId || null, managerId: action.payload.managerId || null, employeeId: action.payload.employeeId || null });
+    case 'UPDATE_PENDING_USER': return updateRow('pending_users', action.payload.email, { name: action.payload.name, role: action.payload.role, departmentId: action.payload.departmentId || null, managerId: action.payload.managerId || null, employeeId: action.payload.employeeId || null }, 'email');
     case 'DELETE_PENDING_USER': return deleteRow('pending_users', action.payload, 'email');
     case 'ADD_USER':
       console.warn('[AppContext] ADD_USER is local-only — use ADD_PENDING_USER for the invite flow.');

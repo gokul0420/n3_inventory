@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Users, Plus, Edit, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
+import { Users, Plus, Edit, ToggleLeft, ToggleRight, Trash2, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function UserManagement() {
   const { state, dispatch, addNotification } = useApp();
   const { user: currentUser } = useAuth();
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '', employeeId: '' });
+  const empFileRef = React.useRef();
 
   const departments = state.departments || [];
   const deptName = (id) => departments.find(d => d.id === id)?.name || '—';
@@ -15,11 +17,12 @@ export default function UserManagement() {
   // Registered (non-pending) managers in a given department — valid to assign.
   const managersIn = (deptId) => state.users.filter(u => u.role === 'manager' && !u.pending && u.departmentId === deptId);
 
-  const openCreate = () => { setForm({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '' }); setModal('create'); };
-  const openEdit = (u) => { setForm({ ...u, departmentId: u.departmentId || '', managerId: u.managerId || '' }); setModal('edit'); };
+  const openCreate = () => { setForm({ name: '', email: '', role: 'executive', status: 'active', departmentId: '', managerId: '', employeeId: '' }); setModal('create'); };
+  const openEmployee = () => { setForm({ name: '', email: '', role: 'employee', status: 'active', departmentId: '', managerId: '', employeeId: '' }); setModal('create'); };
+  const openEdit = (u) => { setForm({ ...u, departmentId: u.departmentId || '', managerId: u.managerId || '', employeeId: u.employeeId || '' }); setModal('edit'); };
 
   // Hierarchy rules: managers & executives need a department; executives also
-  // need an assigned manager.
+  // need a manager; employees need an Employee ID.
   const validateMapping = () => {
     if ((form.role === 'manager' || form.role === 'executive') && !form.departmentId) {
       addNotification('Department required', `A ${form.role} must be assigned to a department.`, 'danger');
@@ -29,14 +32,18 @@ export default function UserManagement() {
       addNotification('Manager required', 'An executive must be mapped to a manager in their department.', 'danger');
       return false;
     }
+    if (form.role === 'employee' && !form.employeeId.trim()) {
+      addNotification('Employee ID required', 'An employee must have an Employee ID.', 'danger');
+      return false;
+    }
     return true;
   };
 
   const handleSave = () => {
     if (!validateMapping()) return;
-    // Admins aren't tied to a department/manager.
-    const dept = form.role === 'admin' ? null : (form.departmentId || null);
+    const dept = (form.role === 'admin' || form.role === 'employee') ? null : (form.departmentId || null);
     const mgr = form.role === 'executive' ? (form.managerId || null) : null;
+    const empId = form.role === 'employee' ? form.employeeId.trim() : null;
 
     if (modal === 'create') {
       const email = form.email.trim().toLowerCase();
@@ -44,16 +51,36 @@ export default function UserManagement() {
         addNotification('Already exists', `${email} is already in the system.`, 'danger');
         return;
       }
-      dispatch({ type: 'ADD_PENDING_USER', payload: { name: form.name.trim(), email, role: form.role, departmentId: dept, managerId: mgr } });
+      dispatch({ type: 'ADD_PENDING_USER', payload: { name: form.name.trim(), email, role: form.role, departmentId: dept, managerId: mgr, employeeId: empId } });
       addNotification('User Invited', `${form.name} added as ${form.role}. They can now sign up to set their password.`, 'success');
     } else if (form.pending) {
-      dispatch({ type: 'UPDATE_PENDING_USER', payload: { email: form.email, name: form.name.trim(), role: form.role, departmentId: dept, managerId: mgr } });
+      dispatch({ type: 'UPDATE_PENDING_USER', payload: { email: form.email, name: form.name.trim(), role: form.role, departmentId: dept, managerId: mgr, employeeId: empId } });
       addNotification('Invite Updated', `${form.name} updated`, 'info');
     } else {
-      dispatch({ type: 'UPDATE_USER', payload: { id: form.id, name: form.name.trim(), role: form.role, status: form.status, departmentId: dept, managerId: mgr } });
+      dispatch({ type: 'UPDATE_USER', payload: { id: form.id, name: form.name.trim(), role: form.role, status: form.status, departmentId: dept, managerId: mgr, employeeId: empId } });
       addNotification('User Updated', `${form.name} updated`, 'info');
     }
     setModal(null);
+  };
+
+  // Bulk-add employees from an Excel file with columns: Employee ID, Name, Email
+  const handleEmployeeBulk = async (file) => {
+    try {
+      const wb = XLSX.read(await file.arrayBuffer());
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      let added = 0, skipped = 0;
+      rows.forEach(r => {
+        const email = (r['Email'] || r['Email ID'] || '').toString().trim().toLowerCase();
+        const empId = (r['Employee ID'] || r['EmployeeID'] || '').toString().trim();
+        const name = (r['Name'] || '').toString().trim();
+        if (!email || !empId || !name) { skipped++; return; }
+        if (state.users.some(u => u.email?.toLowerCase() === email)) { skipped++; return; }
+        dispatch({ type: 'ADD_PENDING_USER', payload: { name, email, role: 'employee', departmentId: null, managerId: null, employeeId: empId } });
+        added++;
+      });
+      addNotification('Bulk Employees', `${added} employee(s) invited${skipped ? `, ${skipped} skipped (missing fields/duplicates)` : ''}.`, added ? 'success' : 'info');
+    } catch (e) { addNotification('Upload Failed', e.message, 'danger'); }
+    if (empFileRef.current) empFileRef.current.value = '';
   };
 
   const toggleStatus = (u) => {
@@ -84,18 +111,23 @@ export default function UserManagement() {
 
   return (
     <div className="fade-in">
-      <div className="page-header"><div><h1 className="page-title">User Management</h1><p className="page-subtitle">Manage users and assign roles</p></div>
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={16}/> Add User</button>
+      <div className="page-header"><div><h1 className="page-title">User Management</h1><p className="page-subtitle">Manage users, roles and employees</p></div>
+        <div className="page-actions" style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-secondary" onClick={openEmployee}><Plus size={16}/> Add Employee</button>
+          <button className="btn btn-secondary" onClick={() => empFileRef.current?.click()}><Upload size={16}/> Bulk Employees</button>
+          <button className="btn btn-primary" onClick={openCreate}><Plus size={16}/> Add User</button>
+        </div>
+        <input ref={empFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={e => e.target.files[0] && handleEmployeeBulk(e.target.files[0])} />
       </div>
       <div className="table-container">
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Manager</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Dept / Emp ID</th><th>Manager</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>{state.users.map(u => (
             <tr key={u.id}>
               <td><div className="flex items-center gap-3"><div className="user-avatar" style={{width:32,height:32,fontSize:'.75rem'}}>{u.avatar}</div><span className="font-medium">{u.name}</span></div></td>
               <td>{u.email}</td>
               <td><span className="badge badge-info">{u.role}</span></td>
-              <td className="text-sm">{u.role==='admin' ? '—' : deptName(u.departmentId)}</td>
+              <td className="text-sm">{u.role==='employee' ? `ID: ${u.employeeId || '—'}` : u.role==='admin' ? '—' : deptName(u.departmentId)}</td>
               <td className="text-sm">{u.role==='executive' ? userName(u.managerId) : '—'}</td>
               <td><span className={`badge ${u.status==='active'?'badge-active':u.status==='pending'?'badge-warning':'badge-inactive'}`}>{u.pending ? 'awaiting sign-up' : u.status}</span></td>
               <td><div className="table-actions" style={{ display:'flex', gap:6, alignItems:'center' }}>
@@ -117,8 +149,11 @@ export default function UserManagement() {
           <div className="modal-body">
             <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Enter name"/></div>
             <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" value={form.email} disabled={modal==='edit'} onChange={e => setForm({...form, email: e.target.value})} placeholder="Enter email"/></div>
-            <div className="form-group"><label className="form-label">Role</label><select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value, managerId: ''})}><option value="executive">Executive</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
-            {form.role !== 'admin' && (
+            <div className="form-group"><label className="form-label">Role</label><select className="form-select" value={form.role} onChange={e => setForm({...form, role: e.target.value, managerId: ''})}><option value="executive">Executive</option><option value="manager">Manager</option><option value="admin">Admin</option><option value="employee">Employee</option></select></div>
+            {form.role === 'employee' && (
+              <div className="form-group"><label className="form-label">Employee ID</label><input className="form-input" value={form.employeeId} disabled={modal==='edit'} onChange={e => setForm({...form, employeeId: e.target.value})} placeholder="e.g. EMP1001"/></div>
+            )}
+            {form.role !== 'admin' && form.role !== 'employee' && (
               <div className="form-group"><label className="form-label">Department</label>
                 <select className="form-select" value={form.departmentId || ''} onChange={e => setForm({...form, departmentId: e.target.value, managerId: ''})}>
                   <option value="">— Select department —</option>

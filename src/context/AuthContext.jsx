@@ -105,7 +105,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       return { success: false, error: 'This account is not an employee account.' };
     }
-    if (res.user.employee_id && res.user.employee_id !== employeeId.trim()) {
+    if (res.user.employeeId && res.user.employeeId !== employeeId.trim()) {
       await supabase.auth.signOut();
       setUser(null);
       return { success: false, error: 'Email does not match the registered Employee ID.' };
@@ -114,8 +114,26 @@ export function AuthProvider({ children }) {
   }, [login]);
 
   const employeeSignup = useCallback(async (employeeId, email, password) => {
-    return signup(email, password, email.trim().split('@')[0], 'employee');
-  }, [signup]);
+    const cleanEmail = email.trim();
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: { data: { role: 'employee', employee_id: employeeId.trim() } },
+    });
+    if (error) {
+      const msg = /employee_id_mismatch/i.test(error.message)
+        ? 'Employee ID does not match the email on record. Check with your admin.'
+        : /database error|not_invited/i.test(error.message)
+        ? 'You are not registered. Ask your admin to add you as an employee first.'
+        : error.message;
+      return { success: false, error: msg };
+    }
+    if (!data.session) return { success: false, error: 'Account created — please sign in.' };
+    const profile = await fetchProfile(data.user.id);
+    const merged = { ...(profile || { email: cleanEmail, role: 'employee' }), authId: data.user.id };
+    setUser(merged);
+    return { success: true, user: merged };
+  }, []);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
