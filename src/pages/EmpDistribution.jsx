@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Users, Send, Download, Upload, Package, Search, ArrowLeft, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { downloadTemplate as dlTemplate } from '../utils/templateGenerator.js';
+import { sendAllocationEmail, getEmailConfig } from '../utils/emailService.js';
 
 export default function EmpDistribution() {
   const { state, dispatch, addAuditLog, addNotification } = useApp();
@@ -51,7 +52,7 @@ export default function EmpDistribution() {
     }
   };
 
-  const handleSingleSubmit = () => {
+  const handleSingleSubmit = async () => {
     if (!empLookup || !stockId || !quantity || postQty < 0) return;
     const allocId = `EMP-${Date.now().toString(36).toUpperCase()}`;
     const alloc = {
@@ -70,7 +71,18 @@ export default function EmpDistribution() {
     addAuditLog('employee_allocation', allocId, 'created', user.name, `Employee distribution to ${empLookup.name}`);
     addNotification('Employee Distribution Created', `${allocId} submitted for approval`, 'info');
     setSubmitModal(false);
-    setSuccessMsg(`Allocation ${allocId} created and sent for manager approval.`);
+
+    // Notify the employee by email that an item has been assigned to them.
+    let mailNote = '';
+    if (getEmailConfig().enabled) {
+      const res = await sendAllocationEmail(alloc);
+      mailNote = res.success
+        ? ` An email was sent to ${alloc.employeeEmail}.`
+        : ` (Email not sent: ${res.reason}.)`;
+    } else {
+      mailNote = ' (Enable email in System Settings to notify the employee.)';
+    }
+    setSuccessMsg(`Allocation ${allocId} created and sent for manager approval.${mailNote}`);
     // Reset form
     setEmpId(''); setEmpLookup(null); setStockId(''); setSearch(''); setQuantity(''); setPurpose(''); setReceivingLocation(''); setExpectedBy('');
   };
@@ -116,11 +128,13 @@ export default function EmpDistribution() {
           });
         }
       });
-      valid.forEach(v => {
+      const emailOn = getEmailConfig().enabled;
+      for (const v of valid) {
         dispatch({ type: 'ADD_EMPLOYEE_ALLOCATION', payload: v });
         addAuditLog('employee_allocation', v.id, 'created', user.name, `Bulk: ${v.employeeName}`);
-      });
-      if (valid.length) addNotification('Bulk Employee Distribution', `${valid.length} allocations created`, 'success');
+        if (emailOn) await sendAllocationEmail(v);   // notify each employee
+      }
+      if (valid.length) addNotification('Bulk Employee Distribution', `${valid.length} allocations created${emailOn ? ' & employees emailed' : ''}`, 'success');
       setBulkResults({ valid, errors, total: rows.length });
     } catch (e) { addNotification('Upload Failed', e.message, 'danger'); }
     setUploading(false);
