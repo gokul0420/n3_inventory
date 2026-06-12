@@ -58,6 +58,11 @@ export function AuthProvider({ children }) {
     if (!profile) {
       return { success: false, error: 'No profile found for this account. Contact admin.' };
     }
+    // Employees must use the Employee tab (Employee ID + Email + Password).
+    if (profile.role === 'employee') {
+      await supabase.auth.signOut();
+      return { success: false, error: 'Employees must sign in from the Employee tab using Employee ID, Email and Password.' };
+    }
     if (profile.status === 'inactive') {
       await supabase.auth.signOut();
       return { success: false, error: 'Your account has been deactivated. Contact admin.' };
@@ -98,20 +103,26 @@ export function AuthProvider({ children }) {
   // Employee login: sign in by email/password, then verify the profile is an
   // employee whose employee_id matches what they typed.
   const employeeLogin = useCallback(async (employeeId, email, password) => {
-    const res = await login(email, password);
-    if (!res.success) return res;
-    if (res.user.role !== 'employee') {
-      await supabase.auth.signOut();
-      setUser(null);
-      return { success: false, error: 'This account is not an employee account.' };
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) return { success: false, error: error.message || 'Invalid credentials' };
+    const profile = await fetchProfile(data.user.id);
+    if (!profile) { await supabase.auth.signOut(); return { success: false, error: 'No profile found. Contact admin.' }; }
+    if (profile.role !== 'employee') {
+      await supabase.auth.signOut(); setUser(null);
+      return { success: false, error: 'This is not an employee account — use the Staff tab.' };
     }
-    if (res.user.employeeId && res.user.employeeId !== employeeId.trim()) {
-      await supabase.auth.signOut();
-      setUser(null);
-      return { success: false, error: 'Email does not match the registered Employee ID.' };
+    if ((profile.employeeId || '') !== employeeId.trim()) {
+      await supabase.auth.signOut(); setUser(null);
+      return { success: false, error: 'Employee ID, email and password do not match our records.' };
     }
-    return res;
-  }, [login]);
+    if (profile.status === 'inactive') {
+      await supabase.auth.signOut(); setUser(null);
+      return { success: false, error: 'Your account has been deactivated. Contact admin.' };
+    }
+    const merged = { ...profile, authId: data.user.id };
+    setUser(merged);
+    return { success: true, user: merged };
+  }, []);
 
   const employeeSignup = useCallback(async (employeeId, email, password) => {
     const cleanEmail = email.trim();
