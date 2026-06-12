@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { findUserByEmployeeId } from '../data/userStore.js';
 import { Users, Send, Download, Upload, Package, Search, ArrowLeft, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { downloadTemplate as dlTemplate } from '../utils/templateGenerator.js';
@@ -29,7 +28,12 @@ export default function EmpDistribution() {
   const [bulkResults, setBulkResults] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  const activeStocks = state.stockItems.filter(s => s.status === 'active');
+  // Products are scoped to the executive's department (admins see all).
+  const activeStocks = state.stockItems.filter(s =>
+    s.status === 'active' && (user.role === 'admin' || s.departmentId === user.departmentId)
+  );
+  // Look up an employee from the live profile list (Supabase), by Employee ID.
+  const findEmployee = (id) => state.users.find(u => u.role === 'employee' && String(u.employeeId || '') === String(id).trim());
   const selectedStock = activeStocks.find(s => s.id === stockId);
   const postQty = selectedStock ? selectedStock.quantity - Number(quantity || 0) : null;
   const filteredStocks = activeStocks.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase()));
@@ -38,8 +42,8 @@ export default function EmpDistribution() {
     setEmpId(id);
     setEmpError('');
     setEmpLookup(null);
-    if (id.trim().length >= 3) {
-      const found = findUserByEmployeeId(id.trim());
+    if (id.trim().length >= 1) {
+      const found = findEmployee(id);
       if (found) setEmpLookup(found);
       else setEmpError('No employee found with this ID.');
     }
@@ -79,7 +83,7 @@ export default function EmpDistribution() {
       const valid = [], errors = [];
       rows.forEach((row, i) => {
         const errs = [];
-        const emp = findUserByEmployeeId(String(row['Employee ID'] || ''));
+        const emp = findEmployee(String(row['Employee ID'] || ''));
         const stock = activeStocks.find(s => s.name === row['Item Name'] || s.code === row['Item Name']);
         if (!emp) errs.push('Employee ID not found');
         if (emp && row['Employee Email'] && emp.email !== row['Employee Email']) errs.push('Email mismatch');
