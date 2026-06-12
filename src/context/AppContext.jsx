@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { analyzeAllStock } from '../utils/aiEngine.js';
-import { sendCriticalStockAlert, getEmailConfig } from '../utils/emailService.js';
+import { sendCriticalStockAlert, sendAllocationEmail, getEmailConfig } from '../utils/emailService.js';
 import { useAuth } from './AuthContext.jsx';
 import { loadAll, subscribeAll, insertRow, insertRows, upsertRows, updateRow, deleteRow, pendingToUser, fetchStock } from '../data/api.js';
 
@@ -197,10 +197,13 @@ export function AppProvider({ children }) {
     if (newlyCritical.length > 0) {
       const config = getEmailConfig();
       if (config.enabled) {
-        const executives = state.users.filter(u =>
-          u.role === 'executive' && u.email && u.status === 'active'
-        );
         newlyCritical.forEach(item => {
+          // Notify only the executives responsible for THIS product's department
+          // (fall back to all active executives if the item has no department).
+          const executives = state.users.filter(u =>
+            u.role === 'executive' && u.email && u.status === 'active' &&
+            (!item.departmentId || u.departmentId === item.departmentId)
+          );
           executives.forEach(exec => { sendCriticalStockAlert(exec, item, item.ai.health); });
           dispatch({
             type: 'ADD_NOTIFICATION',
@@ -216,6 +219,43 @@ export function AppProvider({ children }) {
     }
     prevCriticalIds.current = new Set(currentCriticalMap.keys());
   }, [state.stockItems, state.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Employee-allocation email trigger ─────────────────────────────────────
+  // When an allocation is approved by the manager, email the employee that an
+  // item is assigned to them and ready to collect.
+  const prevApprovedAllocs = useRef(null);
+  useEffect(() => {
+    if (state.loading) return;
+    const approved = new Map(
+      (state.employeeAllocations || [])
+        .filter(a => ['approved', 'accepted', 'received'].includes(a.status))
+        .map(a => [a.id, a])
+    );
+    if (prevApprovedAllocs.current === null) {
+      prevApprovedAllocs.current = new Set(approved.keys());
+      return;
+    }
+    const newlyApproved = [...approved.values()].filter(a => !prevApprovedAllocs.current.has(a.id));
+    // Only the assigned manager's (or admin's) session sends, so the employee
+    // doesn't receive duplicate emails from every other open session.
+    const canSend = user && (user.role === 'admin' || user.role === 'manager');
+    if (newlyApproved.length > 0 && canSend && getEmailConfig().enabled) {
+      newlyApproved.forEach(alloc => {
+        if (user.role === 'manager' && alloc.managerId && alloc.managerId !== user.id) return;
+        sendAllocationEmail(alloc);
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            id: Date.now() + Math.random(),
+            title: `Item Assigned: ${alloc.stockName}`,
+            message: `${alloc.employeeName} was notified to collect ${alloc.quantity} × ${alloc.stockName} from ${alloc.collectionLocation || 'the store'}.`,
+            time: 'Just now', read: false, type: 'info',
+          },
+        });
+      });
+    }
+    prevApprovedAllocs.current = new Set(approved.keys());
+  }, [state.employeeAllocations, state.loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{ state, dispatch, addAuditLog, addNotification, reloadStock }}>

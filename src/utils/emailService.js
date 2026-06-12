@@ -54,6 +54,43 @@ export async function sendCriticalStockAlert(executive, stockItem, health) {
 }
 
 /**
+ * Notify an employee that an item has been allocated to them and is ready to collect.
+ * Reuses the same EmailJS template (maps allocation info onto the template fields).
+ * @param {Object} alloc - employee allocation record
+ */
+export async function sendAllocationEmail(alloc) {
+  const config = getEmailConfig();
+  if (!config.enabled || !config.serviceId || !config.templateId || !config.publicKey) {
+    return { success: false, reason: 'not_configured' };
+  }
+  if (!alloc.employeeEmail) return { success: false, reason: 'no_email' };
+
+  const templateParams = {
+    to_email: alloc.employeeEmail,
+    to_name: alloc.employeeName || 'Employee',
+    item_name: alloc.stockName,
+    item_code: alloc.id,
+    item_quantity: alloc.quantity,
+    item_unit: 'Units',
+    item_location: alloc.collectionLocation || '—',
+    item_category: 'Employee Allocation',
+    item_threshold: alloc.expectedBy ? `Collect by ${new Date(alloc.expectedBy).toLocaleDateString()}` : 'At your earliest convenience',
+    health_status: 'Assigned to You — Please Collect',
+    health_emoji: '📦',
+    app_url: window.location.origin,
+    sent_at: new Date().toLocaleString(),
+  };
+
+  try {
+    await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+    return { success: true };
+  } catch (err) {
+    console.error('[EmailService] allocation send failed:', err);
+    return { success: false, reason: err?.text || err?.message || 'unknown' };
+  }
+}
+
+/**
  * Send a test email so admins can verify their EmailJS setup.
  */
 export async function sendTestEmail(toEmail, toName) {
