@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { supabase } from '../lib/supabaseClient.js';
 import { Users, Plus, Edit, ToggleLeft, ToggleRight, Trash2, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -93,19 +94,32 @@ export default function UserManagement() {
     addNotification('User Updated', `${u.name} ${newStatus}`, 'info');
   };
 
-  const handleDelete = (u) => {
+  const handleDelete = async (u) => {
     if (u.id === currentUser?.id) {
       addNotification('Action blocked', "You can't remove your own account while signed in.", 'danger');
       return;
     }
     const label = u.pending ? `Cancel the invite for ${u.name} (${u.email})?` : `Remove ${u.name} (${u.email})? They will lose access to the app.`;
     if (!window.confirm(label)) return;
+    // Optimistically remove from the UI immediately.
+    if (!u.pending) dispatch({ type: 'DELETE_USER', payload: u.id });
+    dispatch({ type: 'DELETE_PENDING_USER', payload: u.email });
+
     if (u.pending) {
-      dispatch({ type: 'DELETE_PENDING_USER', payload: u.email });
       addNotification('Invite Cancelled', `${u.name}'s invite was removed`, 'info');
-    } else {
-      dispatch({ type: 'DELETE_USER', payload: u.id });
-      addNotification('User Removed', `${u.name} has been removed`, 'info');
+      return;
+    }
+    // Registered user → fully delete the Auth account (frees the email) via the
+    // admin Edge Function. Falls back to a profile-only delete if not deployed.
+    try {
+      const { error } = await supabase.functions.invoke('delete-user', { body: { userId: u.id, email: u.email } });
+      if (error) {
+        addNotification('Partially removed', `${u.name} was hidden, but their login could not be fully deleted (Edge Function "delete-user" not deployed?). The email may not be reusable yet.`, 'danger');
+      } else {
+        addNotification('User Removed', `${u.name} fully removed. Their email is free to reuse.`, 'success');
+      }
+    } catch {
+      addNotification('User Removed', `${u.name} removed from the app.`, 'info');
     }
   };
 

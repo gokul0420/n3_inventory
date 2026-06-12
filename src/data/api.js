@@ -63,7 +63,14 @@ export async function loadAll() {
     employeeAllocations: (alloc.data || []).map(rowToApp),
     auditLogs: (audit.data || []).map(rowToApp),
     notifications: (notif.data || []).map(rowToApp),
-    users: [...(profiles.data || []).map(rowToApp), ...(pending.data || []).map(pendingToUser)],
+    users: (() => {
+      const profileRows = (profiles.data || []).map(rowToApp);
+      const profileEmails = new Set(profileRows.map(p => (p.email || '').toLowerCase()));
+      // Hide a pending invite if a real profile already exists for that email.
+      const pendingRows = (pending.data || []).map(pendingToUser)
+        .filter(p => !profileEmails.has((p.email || '').toLowerCase()));
+      return [...profileRows, ...pendingRows];
+    })(),
     departments: (depts.data || []).map(rowToApp),
   };
 }
