@@ -22,7 +22,10 @@ export default function EmpApprovalDashboard() {
   const [approveModal, setApproveModal] = useState(false);
   const [filter, setFilter] = useState('pending_approval');
 
-  const allAllocations = state.employeeAllocations;
+  // A manager only sees allocations routed to them; admins see all.
+  const allAllocations = state.employeeAllocations.filter(a =>
+    user.role === 'admin' || a.managerId === user.id
+  );
   const pending = allAllocations.filter(a => a.status === 'pending_approval');
   const filtered = filter === 'all' ? allAllocations : allAllocations.filter(a => a.status === filter);
 

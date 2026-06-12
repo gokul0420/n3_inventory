@@ -51,12 +51,14 @@ export default function EmpDistribution() {
 
   const handleSingleSubmit = () => {
     if (!empLookup || !stockId || !quantity || postQty < 0) return;
-    const allocId = `EMP-A${String(state.employeeAllocations.length + 1).padStart(3, '0')}`;
+    const allocId = `EMP-${Date.now().toString(36).toUpperCase()}`;
     const alloc = {
       id: allocId, stockId, stockName: selectedStock.name, quantity: Number(quantity),
       employeeId: empLookup.employeeId, employeeEmail: empLookup.email, employeeName: empLookup.name,
       purpose: purpose || '', status: 'pending_approval',
       createdBy: user.id, createdAt: new Date().toISOString(),
+      // Route to the creating executive's assigned manager + tag department.
+      managerId: user.managerId || null, departmentId: user.departmentId || null,
       approvedBy: null, approvedAt: null, rejectionReason: null,
       acceptedAt: null, employeeRejectionReason: null,
       collectionLocation: selectedStock.location, receivedAt: null,
@@ -92,12 +94,13 @@ export default function EmpDistribution() {
         if (stock && Number(row['Quantity']) > stock.quantity) errs.push(`Exceeds available stock (${stock.quantity})`);
         if (errs.length) { errors.push({ row: i + 2, data: row, errors: errs }); }
         else {
-          const allocId = `EMP-A${String(state.employeeAllocations.length + valid.length + 1).padStart(3, '0')}`;
+          const allocId = `EMP-${Date.now().toString(36).toUpperCase()}-${i}`;
           valid.push({
             id: allocId, stockId: stock.id, stockName: stock.name, quantity: Number(row['Quantity']),
             employeeId: emp.employeeId, employeeEmail: emp.email, employeeName: emp.name,
             purpose: row['Purpose / Remarks'] || '', status: 'pending_approval',
             createdBy: user.id, createdAt: new Date().toISOString(),
+            managerId: user.managerId || null, departmentId: user.departmentId || null,
             approvedBy: null, approvedAt: null, rejectionReason: null,
             acceptedAt: null, employeeRejectionReason: null,
             collectionLocation: stock.location, receivedAt: null,
